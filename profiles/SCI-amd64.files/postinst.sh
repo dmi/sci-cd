@@ -219,6 +219,7 @@ chmod +x $target/etc/rc.local
 # equal priority of Dom0 make problems on the block devices
 
 ## Tune storage scheduler for better disk latency
+## Turn off tx offload and tso offload on eth interfaces
 cat <<EOFF >$target/etc/rc.sci
 #!/bin/sh
 # On-boot configuration for hardware for better cluster performance
@@ -247,6 +248,12 @@ EOF
   fi
 done
 /etc/init.d/sysfsutils restart
+
+# Fix issues with tx and tso offload
+for i in `ifconfig |grep ^eth |cut -f1 -d" "` ; do
+  ethtool -K $i tx off
+  ethtool -K $i tso off
+done
 EOFF
 chmod +x $target/etc/rc.sci
 
