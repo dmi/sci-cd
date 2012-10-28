@@ -6,6 +6,53 @@ DOMAIN_NAME=`grep '^search' /etc/resolv.conf|head -1|awk '{print $2}'`
 SERVICE_NAME="sci"
 SERVICE_IP=`grep '^nameserver' /etc/resolv.conf|head -1|awk '{print $2}'`
 
+MASTER_NETDEV=${MASTER_NETDEV:-"xen-br0"}
+LAN_NETDEV=${LAN_NETDEV:-$MASTER_NETDEV}
+
+check_netdev(){
+if ! grep -q "^iface $MASTER_NETDEV" /etc/network/interfaces; then
+ cat <<EOF
+ERROR!
+Ganeti master interface $MASTER_NETDEV should be configured and up!
+Check /etc/network/interfaces and /etc/sci/sci.conf
+
+Aborting.
+EOF
+ exit 1
+fi
+if ! grep -q "^iface $LAN_NETDEV" /etc/network/interfaces; then
+ cat <<EOF
+ERROR!
+LAN interface $LAN_NETDEV should be configured and up!
+Check /etc/network/interfaces and /etc/sci/sci.conf
+
+Aborting.
+EOF
+ exit 1
+fi
+if ! /sbin/ifconfig|grep -q "^$MASTER_NETDEV "; then
+ cat <<EOF
+ERROR!
+Ganeti master interface $MASTER_NETDEV seems configured but NOT UP!
+Check ifconfig, /etc/network/interfaces and /etc/sci/sci.conf
+
+Aborting.
+EOF
+ exit 1
+fi
+if ! /sbin/ifconfig|grep -q "^$LAN_NETDEV "; then
+ cat <<EOF
+ERROR!
+LAN interface $LAN_NETDEV seems configured but NOT UP!
+Check ifconfig, /etc/network/interfaces and /etc/sci/sci.conf
+
+Aborting.
+EOF
+ exit 1
+fi
+
+}
+
 case $1 in
 
 cluster)
@@ -13,6 +60,14 @@ cluster)
 cat <<EOF
 Parameters detected:
 Domain name: $DOMAIN_NAME
+
+EOF
+
+check_netdev
+
+cat <<EOF
+Master network interface: $MASTER_NETDEV
+LAN network interface: $LAN_NETDEV
 
 Cluster name: $CLUSTER_NAME
 Cluster IP: $CLUSTER_IP
@@ -91,7 +146,7 @@ echo Initializing cluster
 if [ -n "$NODE1_SAN_IP" ]; then
  SECONDARY_IP="-s $NODE1_SAN_IP"
 fi
-gnt-cluster init --enabled-hypervisors=xen-pvm,xen-hvm --nic-parameters link=$LINK_NETDEV --master-netdev $MASTER_NETDEV $SECONDARY_IP $CLUSTER_NAME
+gnt-cluster init --enabled-hypervisors=xen-pvm,xen-hvm --nic-parameters link=$LAN_NETDEV --master-netdev $MASTER_NETDEV $SECONDARY_IP $CLUSTER_NAME
 test $? -eq 0 || (echo Something wrong; exit 1)
 
 echo Tuning cluster
@@ -105,9 +160,7 @@ if [ -n "$NODE2_IP" ]; then
  fi
  echo "$NODE2_IP       $NODE2_NAME.$DOMAIN_NAME $NODE2_NAME" >>/etc/hosts
  gnt-node add $SECONDARY_IP $NODE2_NAME
- # XXX check - should be copied by a add-node hook
- #echo Copying /etc/ganeti/networks to $NODE2_NAME:
- #gnt-cluster copyfile /etc/ganeti/networks
+ # NOTE: /etc/ganeti/networks should be copied by a add-node hook to any new node
 else
  echo "WARNING! Creating SkyCover Infrastructure with on only one node. This is strongly not recommended for production use!"
 fi
@@ -126,17 +179,34 @@ echo If all is ok, proceed with "$0 sci"
 sci|service)
 
 if [ -z "$SERVICE_NAME" -o -z "$SERVICE_IP" ]; then
- echo You should carefully fullfill parameters in /etc/sci/sci.conf
- echo Aborted.
+ cat <<EOF
+SERVICE_NAME and/or SERVICE_IP not defined.
+You should carefully fullfill parameters in /etc/sci/sci.conf
+
+Aborting.
+EOF
  exit 1
 fi
 
-echo Creating service machine $SERVICE_NAME
+MASTER_NETDEV=`gnt-cluster info|awk '/- master netdev:/{print $NF; exit 0}'`
+LAN_NETDEV=`gnt-cluster info|awk '/^Default nic parameters:/{s=1}/ *link: /{if(s){print $NF; exit 0}}'`
+if [ "$MASTER_NETDEV" != "$LAN_NETDEV" ]; then
+  LANIF="--net=1:link=$LAN_NETDEV"
+fi
+
+check_netdev
+
+cat <<EOF
+Creating service machine $SERVICE_NAME
+IP: $SERVICE_IP on $MASTER_NETDEV
+EOF
+test -n "$LANIF" && echo "Second network device: $LAN_NETDEV"
+
 if [ -n "$NODE2_NAME" ]; then
-  gnt-instance add -t drbd -o debootstrap+sci -s 10g -B memory=512m -n $NODE1_NAME:$NODE2_NAME $SERVICE_NAME
+  gnt-instance add -t drbd -o debootstrap+sci -s 10g -B memory=512m --net=0:link=$MASTER_NETDEV $LANIF -n $NODE1_NAME:$NODE2_NAME $SERVICE_NAME
 else
   echo "WARNING! Creating the service instance without fallback support. This is strongly not recommended for production use!"
-  gnt-instance add -t plain -o debootstrap+sci -s 10g -B memory=512m -n $NODE1_NAME $SERVICE_NAME
+  gnt-instance add -t plain -o debootstrap+sci -s 10g -B memory=512m --net=0:link=$MASTER_NETDEV $LANIF -n $NODE1_NAME $SERVICE_NAME
 fi
 
 ;;

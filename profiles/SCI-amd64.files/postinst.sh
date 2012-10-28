@@ -432,9 +432,15 @@ NODE2_NAME=
 NODE2_IP=
 NODE2_SAN_IP=
 
-#master netdev name
-MASTER_NETDEV=xen-br0
-LINK_NETDEV=xen-br0
+# Network device override for bind cluster ip
+# will be xen-br0 by default
+#MASTER_NETDEV=xen-br0
+
+# Network device override for regular LAN
+# it will be binded to virtual machines by default.
+# will be xen-lan if xen-lan is configured upon "sci-setup cluster"
+# otherwise will be MASTER_NETDEV
+#LAN_NETDEV=\$MASTER_NETDEV
 
 #reserved volumes - what lvm used by nodes system not by cluster(comma separated)
 RESERVED_VOLS="xenvg/system-.*"
