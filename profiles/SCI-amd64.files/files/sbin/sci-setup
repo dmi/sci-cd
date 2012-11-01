@@ -10,47 +10,26 @@ MASTER_NETDEV=${MASTER_NETDEV:-"xen-br0"}
 LAN_NETDEV=${LAN_NETDEV:-$MASTER_NETDEV}
 
 check_netdev(){
-if ! grep -q "^iface $MASTER_NETDEV" /etc/network/interfaces; then
- cat <<EOF
+  if ! grep -q "^iface $1" /etc/network/interfaces; then
+   cat <<EOF
 ERROR!
-Ganeti master interface $MASTER_NETDEV should be configured and up!
+Ganeti master interface $1 should be configured and up!
 Check /etc/network/interfaces and /etc/sci/sci.conf
 
 Aborting.
 EOF
- exit 1
-fi
-if ! grep -q "^iface $LAN_NETDEV" /etc/network/interfaces; then
- cat <<EOF
+   exit 1
+  fi
+  if ! /sbin/ifconfig|grep -q "^$1 "; then
+   cat <<EOF
 ERROR!
-LAN interface $LAN_NETDEV should be configured and up!
-Check /etc/network/interfaces and /etc/sci/sci.conf
-
-Aborting.
-EOF
- exit 1
-fi
-if ! /sbin/ifconfig|grep -q "^$MASTER_NETDEV "; then
- cat <<EOF
-ERROR!
-Ganeti master interface $MASTER_NETDEV seems configured but NOT UP!
+Ganeti master interface $1 seems configured but NOT UP!
 Check ifconfig, /etc/network/interfaces and /etc/sci/sci.conf
 
 Aborting.
 EOF
- exit 1
-fi
-if ! /sbin/ifconfig|grep -q "^$LAN_NETDEV "; then
- cat <<EOF
-ERROR!
-LAN interface $LAN_NETDEV seems configured but NOT UP!
-Check ifconfig, /etc/network/interfaces and /etc/sci/sci.conf
-
-Aborting.
-EOF
- exit 1
-fi
-
+   exit 1
+  fi
 }
 
 case $1 in
@@ -63,7 +42,8 @@ Domain name: $DOMAIN_NAME
 
 EOF
 
-check_netdev
+check_netdev $MASTER_NETDEV
+check_netdev $LAN_NETDEV
 
 cat <<EOF
 Master network interface: $MASTER_NETDEV
@@ -194,7 +174,8 @@ if [ "$MASTER_NETDEV" != "$LAN_NETDEV" ]; then
   LANIF="--net=1:link=$LAN_NETDEV"
 fi
 
-check_netdev
+check_netdev $MASTER_NETDEV
+check_netdev $LAN_NETDEV
 
 cat <<EOF
 Creating service machine $SERVICE_NAME
