@@ -1,19 +1,27 @@
 #!/bin/sh
 
-. /etc/sci/sci.conf
+# usage check_ip IFACE
+# returns NETDEV MASK or exits with error
+check_ip(){
+  if ! /sbin/ifconfig|grep -q "^[ \t]*inet addr:$1 "; then
+   cat <<EOF
+ERROR!
+The IP address $1 is NOT UP on the node!
+Check ifconfig, /etc/network/interfaces and /etc/sci/sci.conf
 
-DOMAIN_NAME=`grep '^search' /etc/resolv.conf|head -1|awk '{print $2}'`
-SERVICE_NAME="sci"
-SERVICE_IP=`grep '^nameserver' /etc/resolv.conf|head -1|awk '{print $2}'`
+Aborting.
+EOF
+   exit 1
+  fi
+}
 
-MASTER_NETDEV=${MASTER_NETDEV:-"xen-br0"}
-LAN_NETDEV=${LAN_NETDEV:-$MASTER_NETDEV}
-
+# usage: check_netdev IFACE PURPOSE
+# exits with error
 check_netdev(){
   if ! grep -q "^iface $1" /etc/network/interfaces; then
    cat <<EOF
 ERROR!
-Ganeti master interface $1 should be configured and up!
+The interface $1 as $2 should be configured and up!
 Check /etc/network/interfaces and /etc/sci/sci.conf
 
 Aborting.
@@ -23,7 +31,7 @@ EOF
   if ! /sbin/ifconfig|grep -q "^$1 "; then
    cat <<EOF
 ERROR!
-Ganeti master interface $1 seems configured but NOT UP!
+The interface $1 as $2 seems configured but NOT UP!
 Check ifconfig, /etc/network/interfaces and /etc/sci/sci.conf
 
 Aborting.
@@ -31,6 +39,92 @@ EOF
    exit 1
   fi
 }
+
+. /etc/sci/sci.conf
+
+DOMAIN_NAME=`grep '^search' /etc/resolv.conf|head -1|awk '{print $2}'`
+SERVICE_NAME="sci"
+SERVICE_IP=`grep '^nameserver' /etc/resolv.conf|head -1|awk '{print $2}'`
+
+#### Perform some AI
+
+# Check NODE1_IP against ifconfig
+# Get NODE1_NETDEV NODE1_MASK
+# Check NODE1_NETDEV against interfaces
+
+# Check NODE1_LAN_IP against ifconfig
+# Get NODE1_LAN_NETDEV NODE1_LAN_MASK
+# Check NODE1_LAN_NETDEV against interfaces
+
+# Check CLUSTER_IP against NODE1_LAN_x and NODE1_INT_x, try to find CLU_NETDEV, or set to MASTER_NETDEV
+# Check autodetected CLU_NETDEV against MASTER_NETDEV override, abort if not match
+# Set MASTER_NETDEV to match CLU_NETDEV
+# Check LAN_NETDEV against NODE1_LAN_NETDEV and NODE1_INT_NETDEV
+# Set LAN_NETDEV or pass
+
+if [ -z "$CLUSTER_IP" ]; then
+  cat <<EOF
+ERROR!
+The CLUSTER_IP must be set!
+Check /etc/sci/sci.conf
+
+Aborting.
+EOF
+  exit 1
+fi
+
+check_ip $NODE1_IP|read NODE1_NTEDEV NODE1_MASK
+check_netdev $NODE1_NETDEV NODE1_NETDEV
+if check_ip_net $CLUSTER_IP $NODE1_IP $NODE1_MASK; then
+  CLU_NETDEV=$NODE1_NETDEV
+fi
+
+if [ -n "$NODE1_LAN_IP" ]; then
+  check_ip $NODE1_LAN_IP|read NODE1_LAN_NTEDEV NODE1_LAN_MASK
+  check_netdev $NODE1_LAN_NETDEV NODE1_LAN_NETDEV
+  if check_ip_net $CLUSTER_IP $NODE1_LAN_IP $NODE1_LAN_MASK; then
+    CLU_NETDEV=$NODE1_LAN_NETDEV
+  fi
+fi
+
+test -n "$MASTER_NETDEV" && check_netdev $MASTER_NETDEV MASTER_NETDEV
+
+if [ -n "$CLU_NETDEV" ]; then
+  if [ -n "$MASTER_NETDEV" ]; then
+    if [ "$CLU_NETDEV" != "$MASTER_NETDEV" ]; then
+      cat <<EOF
+ERROR!
+The MASTER_NETDEV=$MASTER_NETDEV doesn't match autodetected device $CLU_NETDEV!
+Check /etc/sci/sci.conf
+
+Aborting.
+EOF
+      exit 1
+    fi
+  else
+    MASTER_NETDEV=$CLU_NETDEV
+  fi
+elif [ -z "$MASTER_NETDEV" ]; then
+  cat <<EOF
+ERROR!
+Unable to figure out the MASTER_NETDEV!
+The CLUSTER_IP=$CLUSTER_IP is not a part of configured NODE1 networks.
+And the MASTER_NETDEV override not set.
+Check /etc/sci/sci.conf
+
+Aborting.
+EOF
+  exit 1
+fi
+
+# Here MASTER_NETDEV is always detected
+
+LAN_NETDEV=${LAN_NETDEV:-$NODE1_LAN_NETDEV}
+LAN_NETDEV=${LAN_NETDEV:-$MASTER_NETDEV}
+
+# Here LAN_NETDEV is always detected
+
+#### End AI
 
 case $1 in
 
@@ -40,14 +134,7 @@ cat <<EOF
 Parameters detected:
 Domain name: $DOMAIN_NAME
 
-EOF
-
-check_netdev $MASTER_NETDEV
-check_netdev $LAN_NETDEV
-
-cat <<EOF
 Master network interface: $MASTER_NETDEV
-LAN network interface: $LAN_NETDEV
 
 Cluster name: $CLUSTER_NAME
 Cluster IP: $CLUSTER_IP
@@ -57,15 +144,28 @@ Service instance IP: $SERVICE_IP
 
 Node 1 name: $NODE1_NAME
 Node 1 IP: $NODE1_IP
-
 EOF
+test -n "$NODE1_SAN_IP" && echo Node 1 SAN IP: $NODE1_SAN_IP
+test -n "$NODE1_LAN_IP" && echo Node 1 LAN IP: $NODE1_LAN_IP
+test -n "$LAN_NETDEDV" && echo LAN network interface: $LAN_NETDEV
+echo ""
+
 if [ -n "$NODE2_IP" ]; then
  if [ -n "$NODE1_SAN_IP" -a -z "$NODE2_SAN_IP" ]; then
 cat <<EOF
 ERROR!
 NODE1_SAN_IP is specified but NODE2_SAN_IP is empty.
 Both values must be set or unset.
-The continue will cause error. Aborting.
+This will cause error. Aborting.
+EOF
+  exit 1
+ fi
+ if [ -n "$NODE1_LAN_IP" -a -z "$NODE2_LAN_IP" ]; then
+cat <<EOF
+ERROR!
+NODE1_LAN_IP is specified but NODE2_LAN_IP is empty.
+Both values must be set or unset.
+This will cause error. Aborting.
 EOF
   exit 1
  fi
@@ -73,6 +173,8 @@ EOF
 Node 2 name: $NODE2_NAME
 Node 2 IP: $NODE2_IP
 EOF
+ test -n "$NODE2_SAN_IP" && echo Node 2 SAN IP: $NODE2_SAN_IP
+ test -n "$NODE2_LAN_IP" && echo Node 2 LAN IP: $NODE2_LAN_IP
 else
  cat <<EOF
 WARNING!
