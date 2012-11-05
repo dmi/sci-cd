@@ -453,6 +453,7 @@ NODE2_LAN_IP=
 # (if set, this interface will be passed to "gnt-cluser init --master-netdev")
 # Autodetect if NODE1_LAN_IP is set and CLUSTER_IP matches LAN network
 MASTER_NETDEV=
+MASTER_NETMASK=
 
 # Network interface to bind to virtual machies by default
 # (if set, this interface will be passed to "gnt-cluster init --nic-parameters link=")

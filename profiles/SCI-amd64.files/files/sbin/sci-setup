@@ -1,18 +1,37 @@
 #!/bin/sh
 
-# usage check_ip IFACE
+# usage check_ip IP
 # returns NETDEV MASK or exits with error
 check_ip(){
-  if ! /sbin/ifconfig|grep -q "^[ \t]*inet addr:$1 "; then
-   cat <<EOF
+  /sbin/ifconfig|awk -vip="$1" '
+/^[a-z]/{iface=$1}
+/^[ \t]*inet addr:/{
+  split($2,A,":")
+  addr=A[2]
+  if(addr == ip){
+    for(i=1; i<=NF; i++){
+      if($i ~ /^Mask:/){
+        split($i,M,":")
+        mask=M[2]
+      }
+    }
+    print iface, mask
+    ok = 1
+    exit
+  }
+}
+END{
+  if(ok)exit 0
+  exit 1
+}
+' || (cat <<EOF 1>&2
 ERROR!
 The IP address $1 is NOT UP on the node!
 Check ifconfig, /etc/network/interfaces and /etc/sci/sci.conf
 
 Aborting.
 EOF
-   exit 1
-  fi
+  exit 1)
 }
 
 # usage: check_netdev IFACE PURPOSE
@@ -77,6 +96,7 @@ check_ip $NODE1_IP|read NODE1_NTEDEV NODE1_MASK
 check_netdev $NODE1_NETDEV NODE1_NETDEV
 if check_ip_net $CLUSTER_IP $NODE1_IP $NODE1_MASK; then
   CLU_NETDEV=$NODE1_NETDEV
+  CLU_NETMASK=$NODE1_MASK
 fi
 
 if [ -n "$NODE1_LAN_IP" ]; then
@@ -84,6 +104,7 @@ if [ -n "$NODE1_LAN_IP" ]; then
   check_netdev $NODE1_LAN_NETDEV NODE1_LAN_NETDEV
   if check_ip_net $CLUSTER_IP $NODE1_LAN_IP $NODE1_LAN_MASK; then
     CLU_NETDEV=$NODE1_LAN_NETDEV
+    CLU_NETMASK=$NODE1_LAN_MASK
   fi
 fi
 
@@ -103,6 +124,7 @@ EOF
     fi
   else
     MASTER_NETDEV=$CLU_NETDEV
+    MASTER_NETMASK=$CLU_NETMASK
   fi
 elif [ -z "$MASTER_NETDEV" ]; then
   cat <<EOF
@@ -118,6 +140,7 @@ EOF
 fi
 
 # Here MASTER_NETDEV is always detected
+MASTER_NETMASK=${MASTER_NETMASK:-"255.255.255.0"}
 
 LAN_NETDEV=${LAN_NETDEV:-$NODE1_LAN_NETDEV}
 LAN_NETDEV=${LAN_NETDEV:-$MASTER_NETDEV}
@@ -228,7 +251,7 @@ echo Initializing cluster
 if [ -n "$NODE1_SAN_IP" ]; then
  SECONDARY_IP="-s $NODE1_SAN_IP"
 fi
-gnt-cluster init --enabled-hypervisors=xen-pvm,xen-hvm --nic-parameters link=$LAN_NETDEV --master-netdev $MASTER_NETDEV $SECONDARY_IP $CLUSTER_NAME
+gnt-cluster init --enabled-hypervisors=xen-pvm,xen-hvm --nic-parameters link=$LAN_NETDEV --master-netdev $MASTER_NETDEV --master-netmask $MASTER_NETMASK $SECONDARY_IP $CLUSTER_NAME
 test $? -eq 0 || (echo Something wrong; exit 1)
 
 echo Tuning cluster
