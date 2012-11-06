@@ -59,6 +59,14 @@ EOF
   fi
 }
 
+# check_ip_net IP1 IP2 IP2-MASK
+# return 0 if IP1 in the same network as IP2
+check_ip_net(){
+  m1=`ipcalc -n $1 $3|awk '/^Network:/{print $2}'`
+  m2=`ipcalc -n $2 $3|awk '/^Network:/{print $2}'`
+  test "$m1" = "$m2"
+}
+
 . /etc/sci/sci.conf
 
 DOMAIN_NAME=`grep '^search' /etc/resolv.conf|head -1|awk '{print $2}'`
