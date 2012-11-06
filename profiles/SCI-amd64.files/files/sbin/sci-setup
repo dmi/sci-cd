@@ -100,7 +100,9 @@ EOF
   exit 1
 fi
 
-check_ip $NODE1_IP|read NODE1_NTEDEV NODE1_MASK
+read NODE1_NETDEV NODE1_MASK <<EOF
+`check_ip $NODE1_IP`
+EOF
 check_netdev $NODE1_NETDEV NODE1_NETDEV
 if check_ip_net $CLUSTER_IP $NODE1_IP $NODE1_MASK; then
   CLU_NETDEV=$NODE1_NETDEV
@@ -108,7 +110,9 @@ if check_ip_net $CLUSTER_IP $NODE1_IP $NODE1_MASK; then
 fi
 
 if [ -n "$NODE1_LAN_IP" ]; then
-  check_ip $NODE1_LAN_IP|read NODE1_LAN_NTEDEV NODE1_LAN_MASK
+  read NODE1_LAN_NETDEV NODE1_LAN_MASK <<EOF
+`check_ip $NODE1_LAN_IP`
+EOF
   check_netdev $NODE1_LAN_NETDEV NODE1_LAN_NETDEV
   if check_ip_net $CLUSTER_IP $NODE1_LAN_IP $NODE1_LAN_MASK; then
     CLU_NETDEV=$NODE1_LAN_NETDEV
