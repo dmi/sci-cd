@@ -70,8 +70,8 @@ check_ip_net(){
 . /etc/sci/sci.conf
 
 DOMAIN_NAME=`grep '^search' /etc/resolv.conf|head -1|awk '{print $2}'`
-SERVICE_NAME="sci"
-SERVICE_IP=`grep '^nameserver' /etc/resolv.conf|head -1|awk '{print $2}'`
+SCI_NAME="sci"
+SCI_IP=`grep '^nameserver' /etc/resolv.conf|head -1|awk '{print $2}'`
 
 #### Perform some AI
 
@@ -174,8 +174,8 @@ Master network interface: $MASTER_NETDEV
 Cluster name: $CLUSTER_NAME
 Cluster IP: $CLUSTER_IP
 
-Service instance name: $SERVICE_NAME
-Service instance IP: $SERVICE_IP
+Service instance name: $SCI_NAME
+Service instance IP: $SCI_IP
 
 Node 1 name: $NODE1_NAME
 Node 1 IP: $NODE1_IP
@@ -245,7 +245,7 @@ ff02::2 ip6-allrouters
 # cluster
 $CLUSTER_IP	$CLUSTER_NAME.$DOMAIN_NAME $CLUSTER_NAME
 # service machine
-$SERVICE_IP	$SERVICE_NAME.$DOMAIN_NAME $SERVICE_NAME puppet.$DOMAIN_NAME puppet apt.$DOMAIN_NAME apt
+$SCI_IP	$SCI_NAME.$DOMAIN_NAME $SCI_NAME puppet.$DOMAIN_NAME puppet apt.$DOMAIN_NAME apt
 # first nodes
 $NODE1_IP	$NODE1_NAME.$DOMAIN_NAME $NODE1_NAME
 EOF
@@ -295,9 +295,9 @@ echo If all is ok, proceed with "$0 sci"
 
 sci|service)
 
-if [ -z "$SERVICE_NAME" -o -z "$SERVICE_IP" ]; then
+if [ -z "$SCI_NAME" -o -z "$SCI_IP" ]; then
  cat <<EOF
-SERVICE_NAME and/or SERVICE_IP not defined.
+SCI_NAME and/or SCI_IP not defined.
 You should carefully fullfill parameters in /etc/sci/sci.conf
 
 Aborting.
@@ -309,22 +309,37 @@ MASTER_NETDEV=`gnt-cluster info|awk '/- master netdev:/{print $NF; exit 0}'`
 LAN_NETDEV=`gnt-cluster info|awk '/^Default nic parameters:/{s=1}/ *link: /{if(s){print $NF; exit 0}}'`
 if [ "$MASTER_NETDEV" != "$LAN_NETDEV" ]; then
   LANIF="--net=1:link=$LAN_NETDEV"
+  if [ -n "$SCI_LAN_IP" ]; then
+    if [ -n "$NODE1_LAN_IP" ]; then
+      if ! check_ip_net $SCI_LAN_IP $NODE1_LAN_IP $NODE1_LAN_MASK; then
+        cat <<EOF
+ERROR!
+NODE1_LAN_IP and SCI_LAN_IP are in different networks.
+Check ifconfig, /etc/network/interfaces and /etc/sci/sci.conf
+
+Aborting.
+EOF
+        exit 1
+      fi
+    fi
+    LANIF="$LANIF,ip=$SCI_LAN_IP"
+  fi
 fi
 
 check_netdev $MASTER_NETDEV
 check_netdev $LAN_NETDEV
 
 cat <<EOF
-Creating service machine $SERVICE_NAME
-IP: $SERVICE_IP on $MASTER_NETDEV
+Creating service machine $SCI_NAME
+IP: $SCI_IP on $MASTER_NETDEV
 EOF
 test -n "$LANIF" && echo "Second network device: $LAN_NETDEV"
 
 if [ -n "$NODE2_NAME" ]; then
-  gnt-instance add -t drbd -o debootstrap+sci -s 10g -B memory=512m --net=0:link=$MASTER_NETDEV $LANIF -n $NODE1_NAME:$NODE2_NAME $SERVICE_NAME
+  gnt-instance add -t drbd -o debootstrap+sci -s 10g -B memory=512m --net=0:link=$MASTER_NETDEV $LANIF -n $NODE1_NAME:$NODE2_NAME $SCI_NAME
 else
   echo "WARNING! Creating the service instance without fallback support. This is strongly not recommended for production use!"
-  gnt-instance add -t plain -o debootstrap+sci -s 10g -B memory=512m --net=0:link=$MASTER_NETDEV $LANIF -n $NODE1_NAME $SERVICE_NAME
+  gnt-instance add -t plain -o debootstrap+sci -s 10g -B memory=512m --net=0:link=$MASTER_NETDEV $LANIF -n $NODE1_NAME $SCI_NAME
 fi
 
 ;;
