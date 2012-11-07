@@ -266,7 +266,8 @@ echo Initializing cluster
 if [ -n "$NODE1_SAN_IP" ]; then
  SECONDARY_IP="-s $NODE1_SAN_IP"
 fi
-gnt-cluster init --enabled-hypervisors=xen-pvm,xen-hvm --nic-parameters link=$LAN_NETDEV --master-netdev $MASTER_NETDEV --master-netmask $MASTER_NETMASK $SECONDARY_IP $CLUSTER_NAME
+gnt-cluster init --enabled-hypervisors=xen-pvm,xen-hvm --nic-parameters link=$LAN_NETDEV --master-netdev $MASTER_NETDEV $SECONDARY_IP $CLUSTER_NAME
+# XXX in ganeti 2.6 should be added: --master-netmask $MASTER_NETMASK
 test $? -eq 0 || (echo Something wrong; exit 1)
 
 echo Tuning cluster
