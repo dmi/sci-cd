@@ -176,6 +176,9 @@ Cluster IP: $CLUSTER_IP
 
 Service instance name: $SCI_NAME
 Service instance IP: $SCI_IP
+EOF
+test -n "$SCI_LAN_IP" && echo Service instance LAN IP: $SCI_LAN_IP
+cat <<EOF
 
 Node 1 name: $NODE1_NAME
 Node 1 IP: $NODE1_IP
