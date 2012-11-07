@@ -311,7 +311,7 @@ fi
 
 MASTER_NETDEV=`gnt-cluster info|awk '/- master netdev:/{print $NF; exit 0}'`
 LAN_NETDEV=`gnt-cluster info|awk '/^Default nic parameters:/{s=1}/ *link: /{if(s){print $NF; exit 0}}'`
-if [ "$MASTER_NETDEV" != "$LAN_NETDEV" ]; then
+if [ "$NODE1_NETDEV" != "$LAN_NETDEV" ]; then
   LANIF="--net=1:link=$LAN_NETDEV"
   if [ -n "$SCI_LAN_IP" ]; then
     if [ -n "$NODE1_LAN_IP" ]; then
@@ -340,10 +340,10 @@ EOF
 test -n "$LANIF" && echo "Second network device: $LAN_NETDEV"
 
 if [ -n "$NODE2_NAME" ]; then
-  gnt-instance add -t drbd -o debootstrap+sci -s 10g -B memory=512m --net=0:link=$MASTER_NETDEV $LANIF -n $NODE1_NAME:$NODE2_NAME $SCI_NAME
+  gnt-instance add -t drbd -o debootstrap+sci -s 10g -B memory=512m --net=0:link=$NODE1_NETDEV $LANIF -n $NODE1_NAME:$NODE2_NAME $SCI_NAME
 else
   echo "WARNING! Creating the service instance without fallback support. This is strongly not recommended for production use!"
-  gnt-instance add -t plain -o debootstrap+sci -s 10g -B memory=512m --net=0:link=$MASTER_NETDEV $LANIF -n $NODE1_NAME $SCI_NAME
+  gnt-instance add -t plain -o debootstrap+sci -s 10g -B memory=512m --net=0:link=$NODE1_NETDEV $LANIF -n $NODE1_NAME $SCI_NAME
 fi
 
 ;;
