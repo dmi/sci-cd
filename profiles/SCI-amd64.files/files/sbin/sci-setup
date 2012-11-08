@@ -67,6 +67,20 @@ check_ip_net(){
   test "$m1" = "$m2"
 }
 
+# Create line for /etc/ganeti networks
+# Args: IP NETMASK INTERFACE
+for_networks(){
+  N_NETWORK=`ipcalc -n $1 $2|awk -F"[: /]+" '/^Network:/{print $2; exit 0}'`
+  N_NETMASK=`ipcalc -n $1 $2|awk -F"[: /]+" '/^Netmask:/{print $2; exit 0}'`
+  N_BROADCAST=`ipcalc -n $1 $2|awk -F"[: /]+" '/^Broadcast:/{print $2; exit 0}'`
+  if [ -n "$3" ]; then
+    N_GATEWAY=`ip route |grep "^default via .* dev $3"|cut -d' ' -f 3`
+  else
+    N_GATEWAY=""
+  fi
+  echo $N_NETWORK $N_NETMASK $N_BROADCAST $N_GATEWAY
+}
+
 . /etc/sci/sci.conf
 
 DOMAIN_NAME=`grep '^search' /etc/resolv.conf|head -1|awk '{print $2}'`
@@ -86,7 +100,7 @@ SCI_IP=`grep '^nameserver' /etc/resolv.conf|head -1|awk '{print $2}'`
 # Check CLUSTER_IP against NODE1_LAN_x and NODE1_INT_x, try to find CLU_NETDEV, or set to MASTER_NETDEV
 # Check autodetected CLU_NETDEV against MASTER_NETDEV override, abort if not match
 # Set MASTER_NETDEV to match CLU_NETDEV
-# Check LAN_NETDEV against NODE1_LAN_NETDEV and NODE1_INT_NETDEV
+# Check LAN_NETDEV against NODE1_LAN_NETDEV and NODE1_NETDEV
 # Set LAN_NETDEV or pass
 
 if [ -z "$CLUSTER_IP" ]; then
@@ -254,13 +268,17 @@ $NODE1_IP	$NODE1_NAME.$DOMAIN_NAME $NODE1_NAME
 EOF
 
 echo Fulfilling default /etc/ganeti/networks
-# XXX should iterate thru interfaces
-NIC0_NETWORK=`awk '/^[ \t]*network/{print $2; exit 0}' /etc/network/interfaces`
-NIC0_NETMASK=`awk '/^[ \t]*netmask/{print $2; exit 0}' /etc/network/interfaces`
-NIC0_BROADCAST=`awk '/^[ \t]*broadcast/{print $2; exit 0}' /etc/network/interfaces`
-NIC0_GATEWAY=`awk '/^[ \t]*gateway/{print $2; exit 0}' /etc/network/interfaces`
 
-echo $NIC0_NETWORK $NIC0_NETMASK $NIC0_BROADCAST $NIC0_GATEWAY >>/etc/ganeti/networks
+for_networks $NODE1_IP $NODE1_MASK $NODE1_NETDEV >/etc/ganeti/networks
+if [ -n "$NODE1_SAN_IP" ]; then
+  for_networks $NODE1_SAN_IP $NODE1_SAN_MASK >>/etc/ganeti/networks
+fi
+if [ -n "$NODE1_LAN_IP" ]; then
+  for_networks $NODE1_LAN_IP $NODE1_LAN_MASK $NODE1_LAN_NETDEV >>/etc/ganeti/networks
+elif [ -n "$SCI_LAN_IP" ]; then
+  fnx=`for_networks $SCI_LAN_IP ${SCI_LAN_NETMASK:-255.255.255.0}`
+  echo $fnx $SCI_LAN_GATEWAY >>/etc/ganeti/networks 
+fi
 
 echo Initializing cluster
 if [ -n "$NODE1_SAN_IP" ]; then
@@ -330,8 +348,8 @@ EOF
   fi
 fi
 
-check_netdev $MASTER_NETDEV
-check_netdev $LAN_NETDEV
+check_netdev $MASTER_NETDEV MASTER_NETDEV
+check_netdev $LAN_NETDEV LAN_NETDEV
 
 cat <<EOF
 Creating service machine $SCI_NAME

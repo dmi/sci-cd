@@ -441,6 +441,10 @@ NODE1_LAN_IP=
 # If NODE1_LAN_IP is set, then you probably wish to set this too.
 # (you should not to pre-configure this IP on the node)
 SCI_LAN_IP=
+# Optional parameters if NODE1_LAN_IP not configured
+# If not set, it will be omited in instance's interface config
+SCI_LAN_NETMASK=
+SCI_LAN_GATEWAY=
 
 # The second node data
 # If you skip NODE2 configuration, then the cluster will be set up in non redundant one-node mode
