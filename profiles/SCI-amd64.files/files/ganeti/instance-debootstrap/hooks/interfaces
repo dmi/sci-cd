@@ -108,7 +108,8 @@ iface eth$i inet static
 EOF
 
       g=`eval echo "\\$NIC_${i}_GATEWAY"`
-      if [ "$i" = "0" -a -n "$g" ]; then
+      if [ -z "$gateway_set" -a -n "$g" ]; then
+         gateway_set=yes
          cat >> $TARGET/etc/network/interfaces <<EOF
 	gateway `eval echo "\\$NIC_${i}_GATEWAY"`
 EOF
