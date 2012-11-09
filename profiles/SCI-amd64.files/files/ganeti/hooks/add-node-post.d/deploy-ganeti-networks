@@ -2,7 +2,7 @@
 test -n "$GANETI_NODE_NAME" || exit 0
 if [ "$GANETI_MASTER" = "`hostname`" ]; then
   # Add node to known_hosts
-  ssh-keyscan -t rsa,dsa HOST 2>&1 | sort -u - /root/.ssh/known_hosts > /root/.ssh/tmp_hosts
+  ssh-keyscan -t rsa,dsa $GANETI_NODE_NAME 2>&1 | sort -u - /root/.ssh/known_hosts > /root/.ssh/tmp_hosts
   cat /root/.ssh/tmp_hosts > /root/.ssh/known_hosts
   # deploy files
   scp /etc/ganeti/networks $GANETI_NODE_NAME:/etc/ganeti/networks
