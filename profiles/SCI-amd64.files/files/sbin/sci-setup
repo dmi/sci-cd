@@ -301,7 +301,7 @@ if [ -n "$NODE2_IP" ]; then
  gnt-node add $SECONDARY_IP $NODE2_NAME
  # NOTE: /etc/ganeti/networks should be copied by a add-node hook to any new node
  # XXX warkaround, only for the second node
- GANETI_NODE_NAME="$NODE2_NAME.$DOMAIN_NAME" GANETI_MASTER="`hostname`" /etc/ganeti/hooks/add-node-post.d/deploy-ganeti-networks
+ #GANETI_NODE_NAME="$NODE2_NAME.$DOMAIN_NAME" GANETI_MASTER="`hostname`" /etc/ganeti/hooks/add-node-post.d/deploy-ganeti-networks
 else
  echo "WARNING! Creating SkyCover Infrastructure with on only one node. This is strongly not recommended for production use!"
 fi
