@@ -60,7 +60,7 @@ done
 
 if [ -z "$disks" ]; then
 
-  # Building udeb for predefined disk layouts
+  echo Building udeb for predefined disk layouts
 
   cp profiles/default.preseed.$profile.in profiles/default.preseed
   echo "#no options" >src/chose-partman-recipe/manual.preseed
@@ -77,7 +77,7 @@ if [ -z "$disks" ]; then
   test -d tmp/mirror && (cd tmp/mirror; reprepro remove squeeze chose-partman-recipe)
 else
 
-  # Auto apply single user-predefined layout
+  echo Auto apply single user-predefined layout
 
   awk '//{print}/#### INCLUDE PARTMAN ####/{exit}' profiles/default.preseed.$profile.in >profiles/default.preseed
   ./partgen.sh -d $disks -v $partvar -l $partlvm >>profiles/default.preseed
@@ -87,8 +87,13 @@ fi
 
 # Prepare puppet modules as git repository with github upstream
 
-(cd profiles/$profile.files/files/root
-git clone https://github.com/skycover/sci-puppet.git puppet)
+if [ -d profiles/$profile.files/files/root/puppet/.git ]; then
+  echo Pull sci-puppet
+  (cd profiles/$profile.files/files/root/puppet; git pull)
+else
+  echo Clone sci-puppet
+  git clone https://github.com/skycover/sci-puppet.git profiles/$profile.files/files/root/puppet
+fi
 
 # Make the installation bundle
 
